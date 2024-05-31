@@ -1,5 +1,7 @@
 import React, { useRef, useEffect, useState, useCallback } from 'react';
 import maplibregl from 'maplibre-gl';
+import { Button, Divider, FormControlLabel, List, ListItem, ListItemText, Switch, Typography } from "@mui/material";
+import DeleteIcon from '@mui/icons-material/Delete';
 
 const MapComponent: React.FC = () => {
   const mapContainerRef = useRef<HTMLDivElement>(null)
@@ -99,10 +101,29 @@ const MapComponent: React.FC = () => {
     })
   }, [lineCoordinates, isAddingElement])
 
+  const deletePreviewLine = () => {
+    setLineCoordinates([])
+    mapRef.current!.off('mousemove', onMouseMove)
+    const previewLineSource = mapRef.current!.getSource('previewLine') as maplibregl.GeoJSONSource
+    previewLineSource.setData({
+      type: 'Feature',
+      properties: {},
+      geometry: {
+        type: 'LineString',
+        coordinates: []
+      }
+    })
+  }
+
   // Отдельный useEffect для обработки кликов на карте
   useEffect(() => {
     if (isAddingElement === 'line' && lineCoordinates.length === 1) {
       mapRef.current!.on('mousemove', onMouseMove);
+    }
+
+    // Если до нажатия на кнопку создания точки на карте была недоделанная линия, удаляем её
+    if (isAddingElement === 'point' && lineCoordinates.length > 0) {
+      deletePreviewLine()
     }
 
     const onClick = async (event: maplibregl.MapMouseEvent) => {
@@ -153,24 +174,12 @@ const MapComponent: React.FC = () => {
           data.features.push(newFeature)
           source.setData(data)
           setIsAddingElement(null)
-          setLineCoordinates([])
-          mapRef.current!.off('mousemove', onMouseMove)
-          const previewLineSource = mapRef.current!.getSource('previewLine') as maplibregl.GeoJSONSource
-          previewLineSource.setData({
-            type: 'Feature',
-            properties: {},
-            geometry: {
-              type: 'LineString',
-              coordinates: []
-            }
-          })
+          deletePreviewLine()
         }
       } else if (isAddingElement === 'point') { // Создание точки
-        // Добавление новой точки
         const source = mapRef.current!.getSource('points') as maplibregl.GeoJSONSource
         const data = await source.getData() as GeoJSON.FeatureCollection<GeoJSON.Geometry>
         const creationDate = new Date().toLocaleDateString('ru-RU')
-
         const newFeature: GeoJSON.Feature<GeoJSON.Geometry> = {
           type: 'Feature',
           properties: {
@@ -181,7 +190,6 @@ const MapComponent: React.FC = () => {
             coordinates: [event.lngLat.lng, event.lngLat.lat]
           }
         }
-
         data.features.push(newFeature)
         source.setData(data)
         setIsAddingElement(null)
@@ -226,24 +234,82 @@ const MapComponent: React.FC = () => {
   const deleteElements = (type: string) => {
     if (!mapRef.current) return;
 
-      const source = mapRef.current.getSource(type) as maplibregl.GeoJSONSource;
-      if (source) {
-        source.setData({
-          type: 'FeatureCollection',
-          features: [] // Устанавливаем пустой массив features, удаляя все элементы
-        })
-      }
+    deletePreviewLine()
+    setIsAddingElement(null)
+    const source = mapRef.current.getSource(type) as maplibregl.GeoJSONSource
+    if (source) {
+      source.setData({
+        type: 'FeatureCollection',
+        features: [] // Устанавливаем пустой массив features, удаляя все элементы
+      })
+    }
   }
 
+  const style = {
+    p: 1,
+    width: '100%',
+    maxWidth: 230,
+    borderRadius: 4,
+    border: '1px solid',
+    borderColor: 'divider',
+    backgroundColor: 'background.paper',
+    position: 'fixed',
+    zIndex: '20',
+    top: 20,
+    right: 20
+  };
+
   return <div>
-    <button onClick={() => setIsAddingElement('point')}>Добавить точку</button>
-    <button onClick={() => setIsAddingElement('line')}>Добавить линию</button>
-    <input type="checkbox" id="lines" defaultChecked={true} onChange={(e) => filterElements(e)} />
-    <label htmlFor="lines">Показ линий</label>
-    <input type="checkbox" id="points" defaultChecked={true} onChange={(e) => filterElements(e)} />
-    <label htmlFor="points">Показ точек</label>
-    <button onClick={() => deleteElements('points')}>Удалить точки</button>
-    <button onClick={() => deleteElements('lines')}>Удалить линии</button>
+    <List sx={style} aria-label="mailbox folders">
+      <ListItem>
+        {/*<ListItemText primary="Точки" />*/}
+        <Typography variant="h6" component="div">
+          Точки
+        </Typography>
+      </ListItem>
+      <ListItem>
+        <Button color="secondary" variant="outlined" onClick={() => setIsAddingElement('point')}>Добавить точку</Button>
+      </ListItem>
+      <ListItem>
+        <FormControlLabel
+          color="secondary"
+          control={<Switch defaultChecked onChange={(e) => filterElements(e)} color="secondary" id="points" />}
+          label="Показ точек"
+          labelPlacement="end"
+        />
+      </ListItem>
+      <ListItem>
+        <Button color="secondary" onClick={() => deleteElements('points')} variant="outlined"
+          startIcon={<DeleteIcon />}>
+          Удалить точки
+        </Button>
+      </ListItem>
+
+      <Divider component="li" />
+
+      <ListItem>
+        {/*<ListItemText primary="Линии" />*/}
+        <Typography variant="h6" component="div">
+          Линии
+        </Typography>
+      </ListItem>
+      <ListItem>
+        <Button color="secondary" variant="outlined" onClick={() => setIsAddingElement('line')}>Добавить линию</Button>
+      </ListItem>
+      <ListItem>
+        <FormControlLabel
+          color="secondary"
+          control={<Switch defaultChecked onChange={(e) => filterElements(e)} color="secondary" id="lines" />}
+          label="Показ линий"
+          labelPlacement="end"
+        />
+      </ListItem>
+      <ListItem>
+        <Button color="secondary" onClick={() => deleteElements('lines')} variant="outlined" startIcon={<DeleteIcon />}>
+          Удалить линии
+        </Button>
+      </ListItem>
+    </List>
     <div ref={mapContainerRef} style={{ width: '100vw', height: '100vh' }} />
   </div>
 }
