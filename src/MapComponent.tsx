@@ -88,21 +88,19 @@ const MapComponent: React.FC = () => {
   }, [])
 
   const onMouseMove = useCallback((e: maplibregl.MapMouseEvent) => {
-    // console.log('onMouseMove')
-      const previewLineSource = mapRef.current!.getSource('previewLine') as maplibregl.GeoJSONSource
-      previewLineSource.setData({
-        type: 'Feature',
-        properties: {},
-        geometry: {
-          type: 'LineString',
-          coordinates: [lineCoordinates[0], [e.lngLat.lng, e.lngLat.lat]]
-        }
-      })
+    const previewLineSource = mapRef.current!.getSource('previewLine') as maplibregl.GeoJSONSource
+    previewLineSource.setData({
+      type: 'Feature',
+      properties: {},
+      geometry: {
+        type: 'LineString',
+        coordinates: [lineCoordinates[0], [e.lngLat.lng, e.lngLat.lat]]
+      }
+    })
   }, [lineCoordinates, isAddingElement])
 
   // Отдельный useEffect для обработки кликов на карте
   useEffect(() => {
-    // console.log('lineCoordinates', lineCoordinates)
     if (isAddingElement === 'line' && lineCoordinates.length === 1) {
       mapRef.current!.on('mousemove', onMouseMove);
     }
@@ -215,9 +213,37 @@ const MapComponent: React.FC = () => {
     }
   }, [isAddingElement, lineCoordinates])
 
+  const filterElements = (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (mapRef.current) {
+      mapRef.current.setLayoutProperty(
+        e.target.id,
+        'visibility',
+        e.target.checked ? 'visible' : 'none'
+      )
+    }
+  }
+
+  const deleteElements = (type: string) => {
+    if (!mapRef.current) return;
+
+      const source = mapRef.current.getSource(type) as maplibregl.GeoJSONSource;
+      if (source) {
+        source.setData({
+          type: 'FeatureCollection',
+          features: [] // Устанавливаем пустой массив features, удаляя все элементы
+        })
+      }
+  }
+
   return <div>
     <button onClick={() => setIsAddingElement('point')}>Добавить точку</button>
     <button onClick={() => setIsAddingElement('line')}>Добавить линию</button>
+    <input type="checkbox" id="lines" defaultChecked={true} onChange={(e) => filterElements(e)} />
+    <label htmlFor="lines">Показ линий</label>
+    <input type="checkbox" id="points" defaultChecked={true} onChange={(e) => filterElements(e)} />
+    <label htmlFor="points">Показ точек</label>
+    <button onClick={() => deleteElements('points')}>Удалить точки</button>
+    <button onClick={() => deleteElements('lines')}>Удалить линии</button>
     <div ref={mapContainerRef} style={{ width: '100vw', height: '100vh' }} />
   </div>
 }
