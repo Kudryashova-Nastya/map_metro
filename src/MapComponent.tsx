@@ -4,9 +4,10 @@ import { Button, Divider, FormControlLabel, List, ListItem, Switch, Typography }
 import DeleteIcon from '@mui/icons-material/Delete';
 
 const MapComponent: React.FC = () => {
+  type IElement = 'point' | 'line' | null
   const mapContainerRef = useRef<HTMLDivElement>(null)
   const mapRef = useRef<maplibregl.Map | null>(null)
-  const [isAddingElement, setIsAddingElement] = useState<'point' | 'line' | null>(null)
+  const [isAddingElement, setIsAddingElement] = useState<IElement>(null)
   const [lineCoordinates, setLineCoordinates] = useState<Array<[number, number]>>([])
 
   useEffect(() => {
@@ -115,8 +116,21 @@ const MapComponent: React.FC = () => {
     })
   }
 
+  const changeCursor = (isAddingElement: IElement) => {
+    if (isAddingElement !== null) {
+      mapRef.current!.getCanvas().style.cursor = 'copy'
+    } else {
+      mapRef.current!.getCanvas().style.cursor = ''
+    }
+  }
+
   // Отдельный useEffect для обработки кликов на карте
   useEffect(() => {
+    if (!mapRef.current) return;
+
+    // В режиме создания элемента меняем курсор
+    changeCursor(isAddingElement)
+
     if (isAddingElement === 'line' && lineCoordinates.length === 1) {
       mapRef.current!.on('mousemove', onMouseMove)
     }
@@ -196,22 +210,20 @@ const MapComponent: React.FC = () => {
       }
     }
 
-    if (mapRef.current) {
       mapRef.current.on('click', onClick)
       // Меням курсор на созданных точках и линиях
       mapRef.current.on('mouseenter', 'points', () => {
         mapRef.current!.getCanvas().style.cursor = 'pointer'
       })
       mapRef.current.on('mouseleave', 'points', () => {
-        mapRef.current!.getCanvas().style.cursor = ''
+        changeCursor(isAddingElement)
       })
       mapRef.current.on('mouseenter', 'lines', () => {
         mapRef.current!.getCanvas().style.cursor = 'pointer'
       })
       mapRef.current.on('mouseleave', 'lines', () => {
-        mapRef.current!.getCanvas().style.cursor = ''
+        changeCursor(isAddingElement)
       })
-    }
 
     return () => {
       mapRef.current!.off('click', onClick)
@@ -222,13 +234,12 @@ const MapComponent: React.FC = () => {
   }, [isAddingElement, lineCoordinates])
 
   const filterElements = (e: React.ChangeEvent<HTMLInputElement>) => {
-    if (mapRef.current) {
-      mapRef.current.setLayoutProperty(
-        e.target.id,
-        'visibility',
-        e.target.checked ? 'visible' : 'none'
-      )
-    }
+    if (!mapRef.current) return;
+    mapRef.current.setLayoutProperty(
+      e.target.id,
+      'visibility',
+      e.target.checked ? 'visible' : 'none'
+    )
   }
 
   const deleteElements = (type: string) => {
@@ -284,7 +295,7 @@ const MapComponent: React.FC = () => {
         </Button>
       </ListItem>
 
-      <Divider component="li" />
+      <Divider component="li" sx={{ mt: 2 }} />
 
       <ListItem>
         <Typography variant="h6" component="div">
