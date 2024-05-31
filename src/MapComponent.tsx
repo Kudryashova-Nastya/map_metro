@@ -1,6 +1,6 @@
 import React, { useRef, useEffect, useState, useCallback } from 'react';
 import maplibregl from 'maplibre-gl';
-import { Button, Divider, FormControlLabel, List, ListItem, ListItemText, Switch, Typography } from "@mui/material";
+import { Button, Divider, FormControlLabel, List, ListItem, Switch, Typography } from "@mui/material";
 import DeleteIcon from '@mui/icons-material/Delete';
 
 const MapComponent: React.FC = () => {
@@ -12,7 +12,7 @@ const MapComponent: React.FC = () => {
   useEffect(() => {
     mapRef.current = new maplibregl.Map({
       container: mapContainerRef.current!,
-      style: 'https://api.maptiler.com/maps/streets/style.json?key=8JG1p3uOcXYC9VOVTSC2', // todo env
+      style: `https://api.maptiler.com/maps/streets/style.json?key=${process.env.REACT_APP_KEY}`,
       center: [37.618423, 55.751244],
       zoom: 10
     })
@@ -51,8 +51,8 @@ const MapComponent: React.FC = () => {
         type: 'circle',
         source: 'points',
         paint: {
-          'circle-radius': 9,
-          'circle-color': '#ff81f4'
+          'circle-radius': 10,
+          'circle-color': '#ff6bf2'
         }
       })
 
@@ -79,7 +79,7 @@ const MapComponent: React.FC = () => {
           'line-cap': 'round'
         },
         paint: {
-          'line-color': 'rgba(154,92,253,0.4)',
+          'line-color': 'rgba(154,92,253,0.45)',
           'line-width': 3,
           'line-dasharray': [3, 3]
         }
@@ -118,7 +118,7 @@ const MapComponent: React.FC = () => {
   // Отдельный useEffect для обработки кликов на карте
   useEffect(() => {
     if (isAddingElement === 'line' && lineCoordinates.length === 1) {
-      mapRef.current!.on('mousemove', onMouseMove);
+      mapRef.current!.on('mousemove', onMouseMove)
     }
 
     // Если до нажатия на кнопку создания точки на карте была недоделанная линия, удаляем её
@@ -257,12 +257,11 @@ const MapComponent: React.FC = () => {
     zIndex: '20',
     top: 20,
     right: 20
-  };
+  }
 
   return <div>
     <List sx={style} aria-label="mailbox folders">
       <ListItem>
-        {/*<ListItemText primary="Точки" />*/}
         <Typography variant="h6" component="div">
           Точки
         </Typography>
@@ -288,7 +287,6 @@ const MapComponent: React.FC = () => {
       <Divider component="li" />
 
       <ListItem>
-        {/*<ListItemText primary="Линии" />*/}
         <Typography variant="h6" component="div">
           Линии
         </Typography>
