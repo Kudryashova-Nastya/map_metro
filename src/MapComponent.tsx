@@ -1,4 +1,4 @@
-import React, { useRef, useEffect, useState } from 'react';
+import React, { useRef, useEffect, useState, useCallback } from 'react';
 import maplibregl from 'maplibre-gl';
 
 const MapComponent: React.FC = () => {
@@ -32,13 +32,25 @@ const MapComponent: React.FC = () => {
         }
       })
 
+      mapRef.current!.addSource('previewLine', {
+        type: 'geojson',
+        data: {
+          type: 'Feature',
+          properties: {},
+          geometry: {
+            type: 'LineString',
+            coordinates: []
+          }
+        }
+      })
+
       mapRef.current!.addLayer({
         id: 'points',
         type: 'circle',
         source: 'points',
         paint: {
           'circle-radius': 9,
-          'circle-color': '#bc5bec'
+          'circle-color': '#ff81f4'
         }
       })
 
@@ -51,8 +63,23 @@ const MapComponent: React.FC = () => {
           'line-cap': 'round'
         },
         paint: {
-          'line-color': '#6600ff',
+          'line-color': '#a56bff',
           'line-width': 5
+        }
+      })
+
+      mapRef.current!.addLayer({
+        id: 'previewLine',
+        type: 'line',
+        source: 'previewLine',
+        layout: {
+          'line-join': 'round',
+          'line-cap': 'round'
+        },
+        paint: {
+          'line-color': 'rgba(154,92,253,0.4)',
+          'line-width': 3,
+          'line-dasharray': [3, 3]
         }
       })
     })
@@ -60,13 +87,30 @@ const MapComponent: React.FC = () => {
     return () => mapRef.current?.remove()
   }, [])
 
+  const onMouseMove = useCallback((e: maplibregl.MapMouseEvent) => {
+    // console.log('onMouseMove')
+      const previewLineSource = mapRef.current!.getSource('previewLine') as maplibregl.GeoJSONSource
+      previewLineSource.setData({
+        type: 'Feature',
+        properties: {},
+        geometry: {
+          type: 'LineString',
+          coordinates: [lineCoordinates[0], [e.lngLat.lng, e.lngLat.lat]]
+        }
+      })
+  }, [lineCoordinates, isAddingElement])
+
   // Отдельный useEffect для обработки кликов на карте
   useEffect(() => {
+    // console.log('lineCoordinates', lineCoordinates)
+    if (isAddingElement === 'line' && lineCoordinates.length === 1) {
+      mapRef.current!.on('mousemove', onMouseMove);
+    }
+
     const onClick = async (event: maplibregl.MapMouseEvent) => {
       const features = mapRef.current!.queryRenderedFeatures(event.point, { layers: ['points', 'lines'] })
 
-      if (features.length) {
-        // Клик по существующей точке или линии
+      if (features.length) { // Клик по существующей точке или линии
         const geometry = features[0].geometry as GeoJSON.Geometry
         const description = features[0].properties?.creationDate || 'Дата не указана'
         let coordinates
@@ -74,7 +118,7 @@ const MapComponent: React.FC = () => {
         if (geometry.type === 'Point') {
           coordinates = geometry.coordinates.slice()
         } else if (geometry.type === 'LineString') {
-          coordinates = geometry.coordinates[0].slice() // показываем попап у первой точки линии
+          coordinates = geometry.coordinates[0].slice() // Показываем попап у первой точки линии
         }
 
         if (coordinates) {
@@ -87,31 +131,11 @@ const MapComponent: React.FC = () => {
           .setHTML(`Дата создания: ${description}`)
           .addTo(mapRef.current!)
         }
-      } else if (isAddingElement === 'point') {
-        // Добавление новой точки
-        const source = mapRef.current!.getSource('points') as maplibregl.GeoJSONSource
-        const data = await source.getData() as GeoJSON.FeatureCollection<GeoJSON.Geometry>
-        const creationDate = new Date().toLocaleDateString('ru-RU')
-
-        const newFeature: GeoJSON.Feature<GeoJSON.Geometry> = {
-          type: 'Feature',
-          properties: {
-            creationDate: creationDate
-          },
-          geometry: {
-            type: 'Point',
-            coordinates: [event.lngLat.lng, event.lngLat.lat]
-          }
-        };
-
-        data.features.push(newFeature)
-        source.setData(data)
-        setIsAddingElement(null) // Сбросить режим добавления
-      } else if (isAddingElement === 'line') {
-        // Добавление новой линии
+      } else if (isAddingElement === 'line') { // Создание линии
         const newCoord = [event.lngLat.lng, event.lngLat.lat] as [number, number]
         const newCoords = [...lineCoordinates, newCoord]
-        setLineCoordinates(newCoords)
+        setLineCoordinates(current => [...current, newCoord])
+
         if (newCoords.length > 1) {
           const source = mapRef.current!.getSource('lines') as maplibregl.GeoJSONSource
           const data = await source.getData() as GeoJSON.FeatureCollection<GeoJSON.Geometry>
@@ -130,26 +154,63 @@ const MapComponent: React.FC = () => {
 
           data.features.push(newFeature)
           source.setData(data)
-          setIsAddingElement(null) // Сбросить режим добавления
-          setLineCoordinates([]) // Очистка координат линии
+          setIsAddingElement(null)
+          setLineCoordinates([])
+          mapRef.current!.off('mousemove', onMouseMove)
+          const previewLineSource = mapRef.current!.getSource('previewLine') as maplibregl.GeoJSONSource
+          previewLineSource.setData({
+            type: 'Feature',
+            properties: {},
+            geometry: {
+              type: 'LineString',
+              coordinates: []
+            }
+          })
         }
+      } else if (isAddingElement === 'point') { // Создание точки
+        // Добавление новой точки
+        const source = mapRef.current!.getSource('points') as maplibregl.GeoJSONSource
+        const data = await source.getData() as GeoJSON.FeatureCollection<GeoJSON.Geometry>
+        const creationDate = new Date().toLocaleDateString('ru-RU')
+
+        const newFeature: GeoJSON.Feature<GeoJSON.Geometry> = {
+          type: 'Feature',
+          properties: {
+            creationDate: creationDate
+          },
+          geometry: {
+            type: 'Point',
+            coordinates: [event.lngLat.lng, event.lngLat.lat]
+          }
+        }
+
+        data.features.push(newFeature)
+        source.setData(data)
+        setIsAddingElement(null)
       }
     }
 
     if (mapRef.current) {
       mapRef.current.on('click', onClick)
-      // Меням курсор на точках
+      // Меням курсор на созданных точках и линиях
       mapRef.current.on('mouseenter', 'points', () => {
         mapRef.current!.getCanvas().style.cursor = 'pointer'
       })
       mapRef.current.on('mouseleave', 'points', () => {
         mapRef.current!.getCanvas().style.cursor = ''
       })
+      mapRef.current.on('mouseenter', 'lines', () => {
+        mapRef.current!.getCanvas().style.cursor = 'pointer'
+      })
+      mapRef.current.on('mouseleave', 'lines', () => {
+        mapRef.current!.getCanvas().style.cursor = ''
+      })
     }
 
     return () => {
-      if (mapRef.current) {
-        mapRef.current.off('click', onClick)
+      mapRef.current!.off('click', onClick)
+      if (isAddingElement === 'line') {
+        mapRef.current!.off('mousemove', onMouseMove)
       }
     }
   }, [isAddingElement, lineCoordinates])
